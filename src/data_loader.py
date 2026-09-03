@@ -7,20 +7,22 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 
 TICKER_MAP = {
     "JPM": "JPM_real_data.csv",
+    "JPMC": "JPM_real_data.csv",
     "C": "C_real_data.csv",
     "BAC": "BAC_real_data.csv",
+    "GOOG": "GOOGL_real_data.csv",
+    "GOOGL": "GOOGL_real_data.csv",
+    "MSFT": "MSFT_real_data.csv",
+    "AMZN": "AMZN_real_data.csv",
+    "NVDA": "NVDA_real_data.csv",
     "^VIX": "VIX_real_data.csv",
     "^GSPC": "GSPC_real_data.csv"
 }
 
 def detect_date_and_price_cols(df):
-    """
-    Generic auto-detector for date and price columns in any arbitrary DataFrame.
-    """
     cols = [str(c).strip() for c in df.columns]
     df.columns = cols
     
-    # Auto-detect date column
     date_candidates = ["date", "timestamp", "time", "datetime", "day"]
     date_col = None
     for c in cols:
@@ -30,7 +32,6 @@ def detect_date_and_price_cols(df):
     if date_col is None:
         date_col = cols[0]
         
-    # Auto-detect price column
     price_candidates = ["adj close", "close", "price", "val", "value", "last"]
     price_col = None
     for cand in price_candidates:
@@ -51,9 +52,6 @@ def detect_date_and_price_cols(df):
     return date_col, price_col
 
 def apply_hampel_filter(series, window=5, n_sigmas=3.0):
-    """
-    Applies Hampel Filter (rolling Median Absolute Deviation) to winsorize extreme outliers.
-    """
     series_clean = series.copy()
     rolling_median = series.rolling(window=window, min_periods=1).median()
     rolling_mad = (series - rolling_median).abs().rolling(window=window, min_periods=1).median()
@@ -65,18 +63,16 @@ def apply_hampel_filter(series, window=5, n_sigmas=3.0):
     return series_clean
 
 def load_market_data(ticker="JPM", mode="hybrid", start_date="2020-01-01", custom_file=None):
-    """
-    Generic Data Loader supporting 4 Modes with auto-caching:
-      1. 'live': Downloads via yfinance.
-      2. 'csv': Loads local pre-cached CSV.
-      3. 'hybrid': Tries yfinance first, auto-falls back to CSV.
-      4. 'custom': Processes user-provided CSV file path or file stream.
-    """
     df_raw = None
     source_type = "UNKNOWN"
     status_msg = ""
     
     ticker_upper = str(ticker).upper().strip()
+    if ticker_upper == "JPMC":
+        ticker_upper = "JPM"
+    elif ticker_upper == "GOOGLE":
+        ticker_upper = "GOOGL"
+        
     clean_ticker_filename = ticker_upper.replace("^", "").replace("=", "_")
     csv_name = TICKER_MAP.get(ticker_upper, f"{clean_ticker_filename}_real_data.csv")
     local_csv_path = os.path.join(DATA_DIR, csv_name)
@@ -109,7 +105,6 @@ def load_market_data(ticker="JPM", mode="hybrid", start_date="2020-01-01", custo
                 df_raw = yf.download(ticker_upper, start=start_date).reset_index()
             source_type = "LIVE_API"
             status_msg = f"Live Yahoo Finance API ({ticker_upper})"
-            # Cache locally
             if not df_raw.empty and len(df_raw) > 10:
                 os.makedirs(DATA_DIR, exist_ok=True)
                 df_raw.to_csv(local_csv_path, index=False)
@@ -125,7 +120,6 @@ def load_market_data(ticker="JPM", mode="hybrid", start_date="2020-01-01", custo
             if len(df_raw) > 10:
                 source_type = "LIVE_API"
                 status_msg = f"Live Yahoo Finance API ({ticker_upper})"
-                # Cache locally for future zero-latency fallback
                 os.makedirs(DATA_DIR, exist_ok=True)
                 df_raw.to_csv(local_csv_path, index=False)
             else:
@@ -142,10 +136,17 @@ def load_market_data(ticker="JPM", mode="hybrid", start_date="2020-01-01", custo
             else:
                 raise RuntimeError(f"Both live API and local CSV fallback failed for {ticker_upper}: {e}")
 
-    # Standardized Cleaning Pipeline
     date_col, price_col = detect_date_and_price_cols(df_raw)
     
-    df_raw[date_col] = pd.to_datetime(df_raw[date_col]).dt.tz_localize(None)
+    # Robust timezone parsing handling mixed offsets
+    try:
+        df_raw[date_col] = pd.to_datetime(df_raw[date_col], utc=True, format='mixed').dt.tz_localize(None)
+    except Exception:
+        try:
+            df_raw[date_col] = pd.to_datetime(df_raw[date_col], utc=True).dt.tz_localize(None)
+        except Exception:
+            df_raw[date_col] = pd.to_datetime(df_raw[date_col]).dt.tz_localize(None)
+
     df = df_raw.sort_values(date_col).dropna(subset=[price_col]).copy()
     df.set_index(date_col, inplace=True)
     
