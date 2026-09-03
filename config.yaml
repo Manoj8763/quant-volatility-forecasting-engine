@@ -1,0 +1,33 @@
+# Quantitative Volatility & Algorithmic Risk Engine Configuration
+
+data:
+  default_ticker: "JPM"
+  secondary_tickers: ["C", "BAC"]
+  macro_regressor: "^VIX"
+  benchmark: "^GSPC"
+  start_date: "2020-01-01"
+  default_mode: "hybrid" # Options: live, csv, hybrid
+  data_dir: "data"
+
+models:
+  arima:
+    default_order: [1, 0, 1]
+    seasonal_order: [1, 0, 1, 5] # 5 trading days
+  garch:
+    p: 1
+    q: 1
+    dist: "normal" # Options: normal, t, skewt
+  vecm:
+    k_ar_diff: 1
+    c_case: "const" # Constant term in cointegration
+
+risk_metrics:
+  portfolio_value_default: 1000000 # $1,000,000
+  confidence_levels: [0.95, 0.99]
+  forecast_horizon_default: 10 # 10 trading days
+  hampel_window: 5
+  hampel_n_sigmas: 3.0
+
+trading:
+  z_score_entry: 2.0
+  z_score_exit: 0.0
