@@ -138,14 +138,14 @@ def load_market_data(ticker="JPM", mode="hybrid", start_date="2020-01-01", custo
 
     date_col, price_col = detect_date_and_price_cols(df_raw)
     
-    # Robust timezone parsing handling mixed offsets
+    # Robust timezone parsing and date normalization to midnight (00:00:00)
     try:
-        df_raw[date_col] = pd.to_datetime(df_raw[date_col], utc=True, format='mixed').dt.tz_localize(None)
+        df_raw[date_col] = pd.to_datetime(df_raw[date_col], utc=True, format='mixed').dt.tz_localize(None).dt.normalize()
     except Exception:
         try:
-            df_raw[date_col] = pd.to_datetime(df_raw[date_col], utc=True).dt.tz_localize(None)
+            df_raw[date_col] = pd.to_datetime(df_raw[date_col], utc=True).dt.tz_localize(None).dt.normalize()
         except Exception:
-            df_raw[date_col] = pd.to_datetime(df_raw[date_col]).dt.tz_localize(None)
+            df_raw[date_col] = pd.to_datetime(df_raw[date_col]).dt.normalize()
 
     df = df_raw.sort_values(date_col).dropna(subset=[price_col]).copy()
     df.set_index(date_col, inplace=True)
