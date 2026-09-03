@@ -10,9 +10,9 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
     
     # Johansen test
     joh_res = coint_johansen(prices, det_order=0, k_ar_diff=k_ar_diff)
-    beta = joh_res.evec[:, 0]
+    beta = np.real(joh_res.evec[:, 0])
     
-    # Fit VECM with valid deterministic specification ('co' = constant outside cointegrating relation)
+    # Fit VECM with valid deterministic specification
     try:
         vecm = VECM(prices, k_ar_diff=k_ar_diff, coint_rank=1, deterministic='co')
         vecm_res = vecm.fit()
@@ -25,14 +25,18 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
             vecm_res = vecm.fit()
     
     # Cointegrating Spread: S_t = Price_A - beta_ratio * Price_B
-    beta_ratio = -beta[1] / beta[0] if beta[0] != 0 else 1.0
-    spread = prices[asset_a] - beta_ratio * prices[asset_b]
+    beta_0 = float(beta[0]) if abs(beta[0]) > 1e-8 else 1.0
+    beta_1 = float(beta[1])
+    beta_ratio = float(-beta_1 / beta_0)
+    
+    raw_spread = prices[asset_a].values - beta_ratio * prices[asset_b].values
+    spread = pd.Series(np.real(raw_spread).astype(float), index=prices.index)
     
     # Rolling Z-Score
     mean_spread = spread.rolling(window=30, min_periods=5).mean()
-    std_spread = spread.rolling(window=30, min_periods=5).std()
+    std_spread = spread.rolling(window=30, min_periods=5).std().replace(0, np.nan)
     z_score = (spread - mean_spread) / std_spread
-    z_score = z_score.fillna(0.0)
+    z_score = pd.Series(np.real(z_score.values).astype(float), index=spread.index).fillna(0.0)
     
     # Generate Trading Signals
     signals = pd.Series(0, index=z_score.index)
@@ -40,7 +44,7 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
     signals[z_score < -z_entry] = 1
     
     # Current active signal
-    latest_z = float(z_score.iloc[-1]) if len(z_score) > 0 else 0.0
+    latest_z = float(np.real(z_score.iloc[-1])) if len(z_score) > 0 else 0.0
     if latest_z > z_entry:
         latest_signal_desc = f"SHORT {asset_a} / LONG {asset_b} (Overpriced Spread)"
     elif latest_z < -z_entry:
@@ -55,7 +59,7 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
         "spread": spread,
         "z_score": z_score,
         "signals": signals,
-        "latest_z_score": latest_z,
-        "latest_signal_desc": latest_signal_desc,
+        "latest_z_score": float(latest_z),
+        "latest_signal_desc": str(latest_signal_desc),
         "vecm_fit": vecm_res
     }
