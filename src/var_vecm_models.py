@@ -21,9 +21,17 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
     joh_res = coint_johansen(prices, det_order=0, k_ar_diff=k_ar_diff)
     beta = joh_res.evec[:, 0] # Cointegrating vector
     
-    # Fit VECM
-    vecm = VECM(prices, k_ar_diff=k_ar_diff, coint_rank=1, deterministic='c')
-    vecm_res = vecm.fit()
+    # Fit VECM with valid deterministic specification ('co' = constant outside cointegrating relation)
+    try:
+        vecm = VECM(prices, k_ar_diff=k_ar_diff, coint_rank=1, deterministic='co')
+        vecm_res = vecm.fit()
+    except Exception:
+        try:
+            vecm = VECM(prices, k_ar_diff=k_ar_diff, coint_rank=1, deterministic='ci')
+            vecm_res = vecm.fit()
+        except Exception:
+            vecm = VECM(prices, k_ar_diff=k_ar_diff, coint_rank=1, deterministic='nc')
+            vecm_res = vecm.fit()
     
     # Cointegrating Spread: S_t = Price_A - beta_ratio * Price_B
     beta_ratio = -beta[1] / beta[0] if beta[0] != 0 else 1.0
