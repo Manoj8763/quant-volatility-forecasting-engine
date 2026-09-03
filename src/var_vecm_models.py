@@ -3,15 +3,6 @@ import pandas as pd
 from statsmodels.tsa.vector_ar.vecm import VECM, coint_johansen
 
 def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1, z_entry=2.0):
-    """
-    Fits Vector Error Correction Model (VECM) for Statistical Arbitrage (Pairs Trading).
-
-    Returns:
-        spread (pd.Series): Cointegrating equilibrium spread.
-        z_score (pd.Series): Standardized spread Z-score.
-        signals (pd.Series): Trading signals (-1 = Short Spread, +1 = Long Spread, 0 = Hold).
-        vecm_res: Fitted VECM object.
-    """
     if asset_a not in df_prices.columns or asset_b not in df_prices.columns:
         raise KeyError(f"Assets {asset_a} and {asset_b} must be present in df_prices DataFrame.")
         
@@ -19,7 +10,7 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
     
     # Johansen test
     joh_res = coint_johansen(prices, det_order=0, k_ar_diff=k_ar_diff)
-    beta = joh_res.evec[:, 0] # Cointegrating vector
+    beta = joh_res.evec[:, 0]
     
     # Fit VECM with valid deterministic specification ('co' = constant outside cointegrating relation)
     try:
@@ -45,8 +36,8 @@ def fit_vecm_pairs_trading(df_prices, asset_a="JPM", asset_b="BAC", k_ar_diff=1,
     
     # Generate Trading Signals
     signals = pd.Series(0, index=z_score.index)
-    signals[z_score > z_entry] = -1 # Short Spread (Short Asset A, Long Asset B)
-    signals[z_score < -z_entry] = 1  # Long Spread (Long Asset A, Short Asset B)
+    signals[z_score > z_entry] = -1
+    signals[z_score < -z_entry] = 1
     
     # Current active signal
     latest_z = float(z_score.iloc[-1]) if len(z_score) > 0 else 0.0
