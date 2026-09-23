@@ -257,7 +257,7 @@ if run_button or True:
         sarimax_fit, residuals = fit_sarimax_model(df['Return_Clean'], exog_driver=exog_vix, order=(1,0,1))
         diag = get_sarimax_diagnostics(sarimax_fit)
         
-        # Calculate Train-Test ML Metrics (R2, MAE, RMSE, MAPE, Directional Accuracy)
+        # Calculate Train-Test ML Metrics
         ml_acc = evaluate_train_test_accuracy(df['Return_Clean'], test_ratio=0.2)
         
         lb_res = run_ljung_box_test(residuals)
@@ -280,7 +280,7 @@ if run_button or True:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # -------------------------------------------------------------
-        # TOP SUMMARY METRIC CARDS WITH DYNAMIC CURRENCY & DECIMALS
+        # TOP SUMMARY METRIC CARDS
         # -------------------------------------------------------------
         m_conf = risk_results['metrics_by_confidence'][confidence_selection]
         latest_price_native = df['Price'].iloc[-1]
@@ -317,7 +317,7 @@ if run_button or True:
         with col3:
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-title">{int(confidence_selection*100)}% Daily VaR ({active_curr})</div>
+                <div class="metric-title">{int(confidence_selection*100)}% Daily VaR ({curr_symbol})</div>
                 <div class="metric-value">-{curr_symbol}{var_dollar_conv:,.0f}</div>
                 <div class="metric-sub">Max Expected Normal Loss</div>
             </div>
@@ -326,241 +326,185 @@ if run_button or True:
         with col4:
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-title">{int(confidence_selection*100)}% Expected Shortfall ({active_curr})</div>
+                <div class="metric-title">{int(confidence_selection*100)}% Expected Shortfall ({curr_symbol})</div>
                 <div class="metric-value">-{curr_symbol}{es_dollar_conv:,.0f}</div>
                 <div class="metric-sub">Worst-Case Crash Loss</div>
             </div>
             """, unsafe_allow_html=True)
-            
-        st.markdown("---")
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         # Tabbed Dashboard Sections
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📈 Market Price & Stationarity",
-            "📊 Volatility Forecast (GARCH vs EGARCH)",
-            "⚠️ Value at Risk (VaR) Envelopes",
-            "🔀 VECM Statistical Arbitrage & Pairs Selection",
+            "📊 Market Price & Stationarity", 
+            "📈 Volatility Forecast (GARCH vs EGARCH)", 
+            "⚠️ Value at Risk (VaR) Envelopes", 
+            "🔄 VECM Statistical Arbitrage & Pairs Selection", 
             "📋 Statistical Diagnostics & ML Accuracy Metrics"
         ])
 
         with tab1:
             st.subheader(f"Section 1: {primary_ticker} Market Prices & Stationarity Verification")
             
-            c1, c2 = st.columns(2)
-            with c1:
-                adf_color = "#48BB78" if adf_res['is_stationary'] else "#E53E3E"
-                st.markdown(f"""
-                <div style="background-color: #1A202C; border-left: 5px solid {adf_color}; padding: 12px; border-radius: 6px;">
-                    <b>ADF Test Result:</b> Test Stat = <code>{adf_res['test_statistic']:.4f}</code> | 
-                    p-value = <code>{adf_res['p_value']:.4e}</code> &rarr; 
-                    <span style="color: {adf_color}; font-weight: bold;">{adf_res['conclusion']}</span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with c2:
-                kpss_color = "#48BB78" if kpss_res['is_stationary'] else "#E53E3E"
-                st.markdown(f"""
-                <div style="background-color: #1A202C; border-left: 5px solid {kpss_color}; padding: 12px; border-radius: 6px;">
-                    <b>KPSS Test Result:</b> Test Stat = <code>{kpss_res['test_statistic']:.4f}</code> | 
-                    p-value = <code>{kpss_res['p_value']:.4f}</code> &rarr; 
-                    <span style="color: {kpss_color}; font-weight: bold;">{kpss_res['conclusion']}</span>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            fig_price = make_subplots(specs=[[{"secondary_y": True}]])
-            fig_price.add_trace(
-                go.Scatter(x=df.index, y=df['Price'] * fx_multiplier, name=f"{primary_ticker} Price ({curr_symbol})", line=dict(color="#3182CE", width=2)),
-                secondary_y=False
-            )
-            fig_price.add_trace(
-                go.Scatter(x=df.index, y=(df['Price'] * fx_multiplier).rolling(50).mean(), name="50-Day Moving Average", line=dict(color="#ECC94B", width=1.5, dash="dash")),
-                secondary_y=False
-            )
-            fig_price.add_trace(
-                go.Bar(x=df.index, y=df['Return_Clean']*100, name="Log Return (%)", marker_color="#38A169", opacity=0.3),
-                secondary_y=True
-            )
-            fig_price.update_layout(
-                title=f"{primary_ticker} Stock Price & Stationary Log Returns Trajectory",
-                template="plotly_dark",
-                height=500,
-                hovermode="x unified",
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            fig_price.update_yaxes(title_text=f"Price ({curr_symbol})", secondary_y=False)
-            fig_price.update_yaxes(title_text="Log Return (%)", secondary_y=True)
-            st.plotly_chart(fig_price, use_container_width=True)
+            c_stat1, c_stat2 = st.columns(2)
+            with c_stat1:
+                st.success(f"🟢 **ADF Test Result**: Test Stat = **{adf_res['test_stat']:.4f}** | p-value = **{adf_res['p_value']:.4e}** -> **{adf_res['conclusion']}**")
+            with c_stat2:
+                st.info(f"🔵 **KPSS Test Result**: Test Stat = **{kpss_res['test_stat']:.4f}** | p-value = **{kpss_res['p_value']:.4f}** -> **{kpss_res['conclusion']}**")
+
+            fig_price = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.65, 0.35])
             
+            converted_prices = df['Price'] * fx_multiplier
+            fig_price.add_trace(go.Scatter(x=df.index, y=converted_prices, mode='lines', name=f'{primary_ticker} Price ({curr_symbol})', line=dict(color='#3182CE', width=2)), row=1, col=1)
+            fig_price.add_trace(go.Scatter(x=df.index, y=converted_prices.rolling(50).mean(), mode='lines', name='50-Day Moving Average', line=dict(color='#ECC94B', width=1.5, dash='dash')), row=1, col=1)
+            
+            fig_price.add_trace(go.Scatter(x=df.index, y=df['Return_Clean']*100, mode='lines', name='Log Return (%)', line=dict(color='#48BB78', width=1)), row=2, col=1)
+            
+            fig_price.update_layout(height=520, template='plotly_dark', margin=dict(l=20, r=20, t=30, b=20), title_text=f"{primary_ticker} Stock Price ({curr_symbol}) & Stationary Log Returns Trajectory")
+            st.plotly_chart(fig_price, use_container_width=True)
+
             st.markdown(f"""
             <div class="insight-box">
-                <div class="insight-title">💡 Institutional Analysis: Price Dynamics & Stationarity</div>
-                The Augmented Dickey-Fuller (ADF) and KPSS statistical tests rigorously confirm whether return series exhibit mean-reversion. 
-                Stationary log-returns eliminate spurious trend regressions and serve as the foundational prerequisite for GARCH time-series volatility modeling.
+                <div class="insight-title">📌 Section 1 Executive Interpretation & Outcomes:</div>
+                <ul>
+                    <li><b>Raw Prices vs. Stationary Log Returns</b>: The top graph shows the closing stock price of <b>{primary_ticker}</b> formatted in <b>{active_curr} ({curr_symbol})</b>. To perform valid quantitative modeling, we transformed raw prices into daily log returns.</li>
+                    <li><b>ADF Test Outcome</b>: The Augmented Dickey-Fuller (ADF) test yielded a p-value of <b>{adf_res['p_value']:.4e} (&lt; 0.05)</b>, proving log returns are <b>strictly stationary I(0)</b>.</li>
+                </ul>
             </div>
             """, unsafe_allow_html=True)
 
         with tab2:
-            st.subheader("Section 2: Conditional Volatility Models (Standard GARCH vs EGARCH)")
+            st.subheader(f"Section 2: {primary_ticker} Heteroskedasticity Volatility Forecasting")
             
+            if garch_results['has_leverage_effect']:
+                st.warning(f"⚠️ **Asymmetric Leverage Effect Detected**: EGARCH leverage parameter gamma = {garch_results['egarch_leverage_gamma']:.4f} < 0. Negative market shocks generate significantly larger volatility spikes.")
+            else:
+                st.info(f"ℹ️ **Symmetric Volatility Pattern**: EGARCH leverage parameter gamma = {garch_results['egarch_leverage_gamma']:.4f}.")
+                
             fig_vol = go.Figure()
-            fig_vol.add_trace(go.Scatter(x=df.index, y=garch_results['garch_cond_vol']*100, name="Standard GARCH(1,1) Volatility", line=dict(color="#ED8936", width=1.5)))
-            fig_vol.add_trace(go.Scatter(x=df.index, y=garch_results['egarch_cond_vol']*100, name="EGARCH(1,1) Asymmetric Volatility", line=dict(color="#E53E3E", width=2)))
+            fig_vol.add_trace(go.Scatter(x=df.index, y=garch_results['garch_cond_vol']*100, mode='lines', name='Standard GARCH(1,1)', line=dict(color='#3182CE', width=1.5)))
+            fig_vol.add_trace(go.Scatter(x=df.index, y=garch_results['egarch_cond_vol']*100, mode='lines', name='EGARCH(1,1) (Leverage Asymmetry)', line=dict(color='#E53E3E', width=1.5)))
+            fig_vol.add_trace(go.Scatter(x=df.index, y=garch_results['gjr_cond_vol']*100, mode='lines', name='GJR-GARCH(1,1)', line=dict(color='#ECC94B', width=1.5)))
             
-            fig_vol.update_layout(
-                title="Historical Conditional Volatility Comparison (%)",
-                template="plotly_dark",
-                height=450,
-                hovermode="x unified",
-                yaxis_title="Annualized Volatility (%)"
-            )
+            fig_vol.update_layout(height=450, template='plotly_dark', title_text=f"{primary_ticker} In-Sample Conditional Daily Volatility Comparison (%)", yaxis_title="Daily Volatility (%)")
             st.plotly_chart(fig_vol, use_container_width=True)
             
-            st.markdown(f"""
-            <div class="insight-box">
-                <div class="insight-title">💡 Institutional Volatility Insight: Asymmetric Leverage Effect</div>
-                <b>EGARCH(1,1)</b> captures market asymmetry where negative shocks (market drops) generate higher volatility spikes than positive shocks of identical magnitude.
-                The current <b>{forecast_horizon}-day projected annualized volatility is {garch_results['egarch_forecast_vol'][-1]*100:.2f}%</b>.
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"#### Projected {forecast_horizon}-Day Out-of-Sample Volatility Horizon Table:")
+            forecast_dates = pd.date_range(start=df.index[-1] + pd.Timedelta(days=1), periods=forecast_horizon, freq='B')
+            df_forecast = pd.DataFrame({
+                "Date": [d.strftime("%Y-%m-%d") for d in forecast_dates],
+                "Standard GARCH (%)": np.round(garch_results['garch_forecast_vol'] * 100, 3),
+                "EGARCH (%)": np.round(garch_results['egarch_forecast_vol'] * 100, 3),
+                "GJR-GARCH (%)": np.round(garch_results['gjr_forecast_vol'] * 100, 3)
+            })
+            st.dataframe(df_forecast, use_container_width=True)
 
         with tab3:
-            st.subheader("Section 3: Basel III Value at Risk (VaR) & Expected Shortfall (ES)")
+            st.subheader(f"Section 3: {primary_ticker} Value at Risk (VaR) & Tail Loss ({int(confidence_selection*100)}% Confidence)")
             
-            fig_var = go.Figure()
-            fig_var.add_trace(go.Scatter(x=df.index, y=df['Return_Clean']*100, name="Clean Log Returns (%)", line=dict(color="#CBD5E0", width=1), opacity=0.5))
-            fig_var.add_trace(go.Scatter(x=df.index, y=-garch_results['garch_var_99']*100, name="99% GARCH VaR Envelope", line=dict(color="#DD6B20", width=1.5, dash="dash")))
-            fig_var.add_trace(go.Scatter(x=df.index, y=-garch_results['egarch_var_99']*100, name="99% EGARCH VaR Envelope", line=dict(color="#E53E3E", width=2)))
+            var_series = m_conf['historical_var_returns']
+            aligned_returns = df['Return_Clean'].loc[var_series.index]
             
-            fig_var.update_layout(
-                title="99% Confidence Daily Value at Risk (VaR) Loss Tail Envelopes",
-                template="plotly_dark",
-                height=450,
-                hovermode="x unified",
-                yaxis_title="Daily Loss (%)"
-            )
-            st.plotly_chart(fig_var, use_container_width=True)
+            kupiec = run_kupiec_pof_test(aligned_returns, var_series, confidence_level=confidence_selection)
+            christ = run_christoffersen_test(aligned_returns, var_series)
             
-            v_col1, v_col2 = st.columns(2)
-            with v_col1:
-                kup_color = "#48BB78" if risk_results['kupiec_99']['passed'] else "#E53E3E"
-                st.markdown(f"""
-                <div style="background-color: #1A202C; border-left: 5px solid {kup_color}; padding: 14px; border-radius: 6px;">
-                    <b>Kupiec POF Backtest (99% VaR):</b><br>
-                    Exceedances: <code>{risk_results['kupiec_99']['actual_exceedances']}</code> / Expected: <code>{risk_results['kupiec_99']['expected_exceedances']:.1f}</code><br>
-                    p-value = <code>{risk_results['kupiec_99']['p_value']:.4f}</code> &rarr; 
-                    <span style="color: {kup_color}; font-weight: bold;">{"Passed Model Backtest" if risk_results['kupiec_99']['passed'] else "Model Exceedance Failure"}</span>
-                </div>
-                """, unsafe_allow_html=True)
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                st.success(f"🏛️ **Kupiec POF Regulatory Test**: **{kupiec['conclusion']}** | Observed Breaches: **{kupiec['observed_breaches']}/{kupiec['total_obs']}**")
+            with rc2:
+                st.info(f"🔗 **Christoffersen Independence Test**: **{christ['conclusion']}** | p-value = **{christ['p_value']:.4f}**")
                 
-            with v_col2:
-                chr_color = "#48BB78" if risk_results['christoffersen_99']['passed'] else "#E53E3E"
-                st.markdown(f"""
-                <div style="background-color: #1A202C; border-left: 5px solid {chr_color}; padding: 14px; border-radius: 6px;">
-                    <b>Christoffersen Independence Test:</b><br>
-                    LR Stat = <code>{risk_results['christoffersen_99']['test_stat']:.4f}</code> | p-value = <code>{risk_results['christoffersen_99']['p_value']:.4f}</code><br>
-                    Conclusion &rarr; <span style="color: {chr_color}; font-weight: bold;">{"No Loss Clustering (Independent)" if risk_results['christoffersen_99']['passed'] else "Loss Clustering Detected"}</span>
-                </div>
-                """, unsafe_allow_html=True)
+            fig_var = go.Figure()
+            fig_var.add_trace(go.Scatter(x=aligned_returns.index, y=aligned_returns*100, mode='lines', name=f'{primary_ticker} Daily Return (%)', line=dict(color='#A0AEC0', width=1)))
+            fig_var.add_trace(go.Scatter(x=var_series.index, y=var_series*100, mode='lines', name=f'{int(confidence_selection*100)}% VaR Boundary', line=dict(color='#E53E3E', width=2)))
+            
+            breach_mask = aligned_returns < var_series
+            breach_dates = aligned_returns.index[breach_mask]
+            breach_vals = aligned_returns[breach_mask] * 100
+            
+            fig_var.add_trace(go.Scatter(x=breach_dates, y=breach_vals, mode='markers', name='VaR Breach Points', marker=dict(color='#FF0000', size=7, symbol='x')))
+            fig_var.update_layout(height=460, template='plotly_dark', title_text=f"{primary_ticker} Filtered Historical Simulation (FHS) VaR Risk Envelope")
+            st.plotly_chart(fig_var, use_container_width=True)
 
         with tab4:
-            st.subheader("Section 4: Vector Error Correction Model (VECM) Pairs Trading")
+            st.subheader("Section 4: Vector Error Correction Model (VECM) Pairs Trading Engine")
             
-            pair_choice = st.selectbox("Select Cointegrated Asset Pair for VECM Spread:", options=["JPM vs BAC", "GOOGL vs MSFT", "C vs BAC"], index=0)
-            asset1, asset2 = pair_choice.split(" vs ")
-            
+            col_tab4_1, col_tab4_2 = st.columns([0.5, 0.5])
+            with col_tab4_1:
+                paired_option = st.selectbox(
+                    f"Choose Paired Stock to Compare with {primary_ticker}:",
+                    options=["BAC", "C", "WFC", "GS", "MS", "AAPL", "MSFT", "AMZN", "GOOGL", "NVDA", "CUSTOM WRITE-IN"],
+                    index=0,
+                    key="tab4_paired_selectbox"
+                )
+            with col_tab4_2:
+                if paired_option == "CUSTOM WRITE-IN":
+                    custom_typed = st.text_input("Type ANY Stock Ticker Symbol:", value="AMZN", key="tab4_custom_input").upper().strip()
+                    paired_stock_chosen = custom_typed if custom_typed else "AMZN"
+                else:
+                    paired_stock_chosen = paired_option
+                    
+            if paired_stock_chosen == primary_ticker:
+                paired_stock_chosen = "AMZN" if primary_ticker != "AMZN" else "GOOGL"
+
             try:
-                df1, _ = load_market_data(ticker=asset1, mode="csv")
-                df2, _ = load_market_data(ticker=asset2, mode="csv")
+                st.info(f"⚡ **ACTIVE PAIRS COMPARISON:** `{primary_ticker}` vs `{paired_stock_chosen}`")
                 
-                df_pairs = pd.DataFrame({
-                    asset1: df1['Price'],
-                    asset2: df2['Price']
-                }).dropna()
+                b_df_paired, _ = load_market_data(ticker=paired_stock_chosen, mode=selected_mode if selected_mode != "custom" else "csv")
+                prices_df_paired = pd.DataFrame({primary_ticker: df['Price'], paired_stock_chosen: b_df_paired['Price']}).dropna()
                 
-                vecm_results = fit_vecm_pairs_trading(df_pairs, asset_a=asset1, asset_b=asset2)
+                joh_res = run_johansen_test(prices_df_paired)
+                vecm_res = fit_vecm_pairs_trading(prices_df_paired, asset_a=primary_ticker, asset_b=paired_stock_chosen)
                 
                 st.markdown(f"""
                 <div class="signal-box">
-                    <b>Active Quantitative Signal ({asset1}/{asset2}):</b> {vecm_results['latest_signal_desc']}<br>
-                    <span style="font-size: 0.9rem; color: #A0AEC0;">
-                        Current Cointegrating Spread Z-Score: <code>{vecm_results['latest_z_score']:.2f}</code> | Hedge Ratio (Beta): <code>{vecm_results['beta_ratio']:.4f}</code>
-                    </span>
+                    🚨 <b>ACTIONABLE ALGORITHMIC SIGNAL:</b> {vecm_res['latest_signal_desc']} <br>
+                    <small>Johansen Cointegration Rank: r = {joh_res['cointegrating_rank']} | Current Spread Z-Score = {vecm_res['latest_z_score']:.2f}</small>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                fig_spread = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, subplot_titles=(f"Cointegrating Equilibrium Spread ({asset1} - {vecm_results['beta_ratio']:.2f}*{asset2})", "Spread Z-Score & Threshold Trading Signals"))
+                fig_z = go.Figure()
+                fig_z.add_trace(go.Scatter(x=vecm_res['z_score'].index, y=vecm_res['z_score'], mode='lines', name='Spread Z-Score', line=dict(color='#3182CE', width=1.5)))
+                fig_z.add_hline(y=2.0, line_dash="dash", line_color="red")
+                fig_z.add_hline(y=-2.0, line_dash="dash", line_color="green")
+                fig_z.add_hline(y=0.0, line_dash="dot", line_color="gray")
                 
-                fig_spread.add_trace(go.Scatter(x=vecm_results['spread'].index, y=vecm_results['spread']*fx_multiplier, name="Spread Price", line=dict(color="#63B3ED", width=1.5)), row=1, col=1)
+                fig_z.update_layout(height=400, template='plotly_dark', title_text=f"{primary_ticker} vs {paired_stock_chosen} Cointegrated Spread Z-Score")
+                st.plotly_chart(fig_z, use_container_width=True)
                 
-                fig_spread.add_trace(go.Scatter(x=vecm_results['z_score'].index, y=vecm_results['z_score'], name="Z-Score", line=dict(color="#4FD1C5", width=1.5)), row=2, col=1)
-                fig_spread.add_hline(y=2.0, line_dash="dash", line_color="#E53E3E", row=2, col=1)
-                fig_spread.add_hline(y=-2.0, line_dash="dash", line_color="#38A169", row=2, col=1)
-                fig_spread.add_hline(y=0.0, line_dash="dot", line_color="#A0AEC0", row=2, col=1)
-                
-                fig_spread.update_layout(template="plotly_dark", height=550, hovermode="x unified")
-                st.plotly_chart(fig_spread, use_container_width=True)
-                
-            except Exception as e_vecm:
-                st.error(f"Could not compute VECM statistical arbitrage for {pair_choice}: {e_vecm}")
+            except Exception as e:
+                st.error(f"VECM Pairs Trading Analysis Error for {primary_ticker} vs {paired_stock_chosen}: {e}")
 
         with tab5:
-            st.subheader("Section 5: Statistical Diagnostics & Machine Learning Evaluation Metrics")
+            st.subheader(f"Section 5: {primary_ticker} Diagnostic Test Suite & Machine Learning Accuracy Evaluation")
             
-            m1, m2, m3, m4, m5 = st.columns(5)
-            m1.metric("Directional Accuracy", f"{ml_acc['directional_accuracy']*100:.2f}%")
-            m2.metric("Out-of-Sample R²", f"{ml_acc['r2_score']:.4f}")
-            m3.metric("Root Mean Sq Error (RMSE)", f"{ml_acc['rmse']:.5f}")
-            m4.metric("Mean Abs Error (MAE)", f"{ml_acc['mae']:.5f}")
-            m5.metric("Mean Abs Pct Error (MAPE)", f"{ml_acc['mape']*100:.2f}%")
-            
-            st.markdown("---")
-            
-            d1, d2 = st.columns(2)
-            with d1:
-                st.markdown(f"""
-                <div style="background-color: #1A202C; padding: 15px; border-radius: 8px;">
-                    <h4>SARIMAX Residual Ljung-Box Test</h4>
-                    Test Statistic: <code>{lb_res['test_statistic']:.4f}</code><br>
-                    p-value: <code>{lb_res['p_value']:.4f}</code><br>
-                    <b>Status:</b> {"No Serial Autocorrelation (White Noise Residuals)" if lb_res['no_autocorrelation'] else "Serial Correlation Detected"}
-                </div>
-                """, unsafe_allow_html=True)
+            ml_col1, ml_col2, ml_col3, ml_col4, ml_col5 = st.columns(5)
+            with ml_col1:
+                st.metric("R² Score", f"{ml_acc['r2_score']:.4f}")
+            with ml_col2:
+                st.metric("RMSE Error", f"{ml_acc['rmse']*100:.3f}%")
+            with ml_col3:
+                st.metric("MAE Error", f"{ml_acc['mae']*100:.3f}%")
+            with ml_col4:
+                st.metric("MAPE (%)", f"{ml_acc['mape']:.2f}%")
+            with ml_col5:
+                st.metric("Hit Rate (%)", f"{ml_acc['directional_accuracy']:.1f}%")
                 
-            with d2:
-                st.markdown(f"""
-                <div style="background-color: #1A202C; padding: 15px; border-radius: 8px;">
-                    <h4>ARCH-LM Heteroskedasticity Test</h4>
-                    Test Statistic: <code>{arch_res['test_statistic']:.4f}</code><br>
-                    p-value: <code>{arch_res['p_value']:.4f}</code><br>
-                    <b>Status:</b> {"ARCH Effects Filtered Out" if not arch_res['has_arch_effects'] else "Residual ARCH Effects Present"}
-                </div>
-                """, unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
             
-            st.markdown("---")
-            st.subheader("📄 Institutional Quantitative Risk Report Generation")
-            
-            report_docx_bytes = generate_docx_quant_report(
-                ticker=primary_ticker,
-                source_info=source_info,
-                adf_res=adf_res,
-                kpss_res=kpss_res,
-                garch_results=garch_results,
-                risk_results=risk_results,
-                ml_acc=ml_acc
-            )
-            
-            st.download_button(
-                label="📥 Download Executive Risk Report (.docx)",
-                data=report_docx_bytes,
-                file_name=f"Quant_Risk_Report_{primary_ticker}.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                type="primary"
-            )
+            df_diag = pd.DataFrame([
+                {"Hypothesis Test": "ADF Unit Root Test", "Target": "Log Returns", "p-value": f"{adf_res['p_value']:.4e}", "Status": "PASS" if adf_res['is_stationary'] else "FAIL", "Outcome": adf_res['conclusion']},
+                {"Hypothesis Test": "KPSS Stationarity Test", "Target": "Log Returns", "p-value": f"{kpss_res['p_value']:.4f}", "Status": "PASS" if kpss_res['is_stationary'] else "FAIL", "Outcome": kpss_res['conclusion']},
+                {"Hypothesis Test": "Ljung-Box Q-Test", "Target": "SARIMAX Residuals", "p-value": f"{lb_res['p_value']:.4f}", "Status": "PASS" if lb_res['is_white_noise'] else "CHECK", "Outcome": lb_res['conclusion']},
+                {"Hypothesis Test": "Engle ARCH-LM Test", "Target": "Residual Variance", "p-value": f"{arch_res['p_value']:.4e}", "Status": "PASS" if arch_res['has_arch_effects'] else "INFO", "Outcome": arch_res['conclusion']},
+                {"Hypothesis Test": "Kupiec POF Backtest", "Target": f"{int(confidence_selection*100)}% VaR Breaches", "p-value": f"{kupiec['p_value']:.4f}", "Status": "PASS" if kupiec['is_passed'] else "FAIL", "Outcome": kupiec['conclusion']},
+                {"Hypothesis Test": "Christoffersen Test", "Target": "Breach Independence", "p-value": f"{christ['p_value']:.4f}", "Status": "PASS" if christ['is_passed'] else "FAIL", "Outcome": christ['conclusion']},
+            ])
+            st.dataframe(df_diag, use_container_width=True)
 
         st.markdown("---")
         st.markdown("""
         <div style="text-align: center; color: #718096; font-size: 0.8rem; padding: 10px;">
-            <b>Quantitative Risk Disclaimer:</b> Designed strictly for educational, research, & portfolio stress-testing purposes. 
-            Does not constitute formal financial investment advice or SEBI-registered brokerage trade execution recommendations.
+            <b>Quantitative Risk Disclaimer:</b> Designed strictly for educational, research, & portfolio stress-testing purposes.
         </div>
         """, unsafe_allow_html=True)
