@@ -149,6 +149,12 @@ st.sidebar.image("https://img.icons8.com/color/96/line-chart.png", width=64)
 st.sidebar.title("Quant Risk Controls")
 st.sidebar.markdown("---")
 
+# Session State Initialization for Search History
+if "search_history" not in st.session_state:
+    st.session_state.search_history = ["^NSEI", "GOOGL", "RELIANCE.NS"]
+if "active_ticker" not in st.session_state:
+    st.session_state.active_ticker = "GOOGL"
+
 # 1. Data Source Mode Switcher
 st.sidebar.subheader("1. Data Source Switcher")
 data_mode = st.sidebar.radio(
@@ -170,7 +176,11 @@ if selected_mode == "custom":
     custom_uploaded_file = st.sidebar.file_uploader("Upload Custom CSV File", type=["csv"])
     ticker_input = "CUSTOM"
 else:
-    ticker_input = st.sidebar.text_input("Primary Stock Ticker Symbol", value="GOOGL").upper().strip()
+    ticker_input = st.sidebar.text_input(
+        "Primary Stock Ticker Symbol", 
+        value=st.session_state.active_ticker
+    ).upper().strip()
+    st.session_state.active_ticker = ticker_input
 
 st.sidebar.markdown("---")
 
@@ -192,7 +202,25 @@ forecast_horizon = st.sidebar.slider("Forecast Horizon (Days)", min_value=1, max
 portfolio_val_input = st.sidebar.number_input("Portfolio Value (Capital)", min_value=10000.0, max_value=1000000000.0, value=1000000.0, step=50000.0)
 confidence_selection = st.sidebar.selectbox("Risk Confidence Level", options=[0.99, 0.95], index=0)
 
-run_button = st.sidebar.button("🚀 Run Quantitative Analysis", type="primary")
+run_button = st.sidebar.button("🚀 Run Quantitative Analysis", type="primary", use_container_width=True)
+
+st.sidebar.markdown("---")
+# 4. Interactive Search History Panel
+st.sidebar.subheader("4. 🕒 Recent Search History")
+if st.session_state.search_history:
+    hist_cols = st.sidebar.columns(2)
+    for idx, item in enumerate(st.session_state.search_history):
+        col = hist_cols[idx % 2]
+        display_label = "NIFTY 50" if item in ["^NSEI", "NIFTY50"] else item.replace(".NS", "")
+        if col.button(f"🔍 {display_label}", key=f"hist_btn_{item}_{idx}"):
+            st.session_state.active_ticker = item
+            st.rerun()
+
+    if st.sidebar.button("🗑️ Clear Search History", key="clear_history_btn"):
+        st.session_state.search_history = []
+        st.rerun()
+else:
+    st.sidebar.caption("No recent searches recorded yet.")
 
 # -------------------------------------------------------------
 # MAIN DASHBOARD CONTENT
@@ -213,6 +241,13 @@ if run_button or True:
             st.stop()
             
         primary_ticker = source_info['ticker']
+        
+        # Track in Session State Search History
+        if primary_ticker and primary_ticker != "CUSTOM":
+            if primary_ticker in st.session_state.search_history:
+                st.session_state.search_history.remove(primary_ticker)
+            st.session_state.search_history.insert(0, primary_ticker)
+            st.session_state.search_history = st.session_state.search_history[:8]
         
         # Determine Native Currency
         is_indian_asset = (
